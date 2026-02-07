@@ -2,3 +2,68 @@ __pycache__/
 venv/
 .env
 task_manager.db
+
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env/
+.envrc
+.venv/
+ENV/
+env/
+env.bak/
+
+# Pytest
+.pytest_cache/
+
+# MyPy
+.mypy_cache/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+
+# Coverage
+.coverage
+htmlcov/
+.coverage.*
+
+# Editor temporary files
+*.bak
+*.swp
+*.swo
+*.tmp
+
+# Node
+node_modules/
