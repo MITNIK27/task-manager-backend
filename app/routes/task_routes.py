@@ -103,7 +103,7 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
 def get_status_history(task_id: int, db: Session = Depends(get_db)):
     return task_service.get_task_status_history(db, task_id)
 
-@router.delete("/tasks/{task_id}")
+@router.post("/{task_id}/archive")
 def archive_task_route(task_id: int, db: Session = Depends(get_db)):
     task = archive_task(db, task_id)
     if not task:
@@ -111,14 +111,14 @@ def archive_task_route(task_id: int, db: Session = Depends(get_db)):
     return {"message": "Task archived successfully"}
 
 
-@router.post("/tasks/{task_id}/restore")
+@router.post("/{task_id}/restore")
 def restore_task_route(task_id: int, db: Session = Depends(get_db)):
     task = restore_task(db, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"message": "Task restored successfully"}
 
-@router.get("/tasks/{task_id}/audit-logs")
+@router.get("/{task_id}/audit-logs")
 def get_task_audit_logs(task_id: int, db: Session = Depends(get_db)):
     return (
         db.query(TaskAuditLog)

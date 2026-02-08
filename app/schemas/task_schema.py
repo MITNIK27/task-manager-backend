@@ -36,7 +36,10 @@ class TaskResponse(TaskBase):
     updated_at: datetime
 
     is_duplicate: bool
-    duplicate_of_task_id: Optional[int] 
+    duplicate_of_task_id: Optional[int]
+    
+    is_archived: bool
+    archived_at: Optional[datetime]
 
     class Config:
         from_attributes = True
