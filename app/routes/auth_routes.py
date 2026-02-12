@@ -7,6 +7,8 @@ from app.database import get_db
 from app.schemas.user_schema import UserCreate, TokenResponse
 from app.services.auth_service import create_user, authenticate_user
 from app.core.security import create_access_token
+from app.core.dependencies import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -27,3 +29,13 @@ def login(
         
     token = create_access_token({"sub": str(user.id)})
     return {"access_token": token, "token_type": "bearer"}
+
+
+@router.get('/me')
+def me(current_user: User = Depends(get_current_user)):
+    # expose minimal user info to frontend
+    return {
+        'id': current_user.id,
+        'username': current_user.username,
+        'role': current_user.role
+    }

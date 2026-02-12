@@ -39,7 +39,7 @@ def close_duplicate_tasks(db: Session, original_task_id: int):
         .filter(
             Task.is_duplicate == True,
             Task.duplicate_of_task_id == original_task_id,
-            Task.status != TaskStatus.DONE
+            Task.status != TaskStatus.DONE.value
         )
         .all()
     )
@@ -58,16 +58,22 @@ def update_task(db: Session, task_id: int, task_data: TaskUpdate):
 
     # 1️⃣ STATUS TRANSITION VALIDATION
     if "status" in update_data:
-        validate_status_transition(task.status, update_data["status"])
+        # normalize current status to enum for validation
+        try:
+            current_status_enum = TaskStatus(task.status)
+        except Exception:
+            current_status_enum = task.status
 
-        if update_data["status"] != task.status:
+        new_status = update_data["status"]
+        validate_status_transition(current_status_enum, new_status)
 
+        if str(new_status) != str(task.status):
             # 🔔 Determine semantic action
-            if task.status == TaskStatus.IN_PROGRESS and update_data["status"] == TaskStatus.DONE:
+            if task.status == TaskStatus.IN_PROGRESS and new_status == TaskStatus.DONE:
                 action = "MOVED_TO_QA"
-            elif task.status == TaskStatus.DONE and update_data["status"] == TaskStatus.DONE:
+            elif task.status == TaskStatus.DONE and new_status == TaskStatus.DONE:
                 action = "QA_APPROVED"
-            elif task.status == TaskStatus.DONE and update_data["status"] == TaskStatus.TODO:
+            elif task.status == TaskStatus.DONE and new_status == TaskStatus.TODO:
                 action = "QA_REJECTED"
             else:
                 action = "STATUS_CHANGED"
@@ -77,28 +83,26 @@ def update_task(db: Session, task_id: int, task_data: TaskUpdate):
                 task_id=task.id,
                 action=action,
                 old_value=task.status,
-                new_value=update_data["status"]
+                new_value=new_status
             )
 
             db.add(
                 TaskStatusHistory(
                     task_id=task.id,
                     old_status=task.status,
-                    new_status=update_data["status"]
+                    new_status=new_status
                 )
             )
 
-        
     # 🔔 PRIORITY CHANGE AUDIT
-    if "priority" in update_data and update_data["priority"] != task.priority:
-            create_audit_log(
-                db=db,
-                task_id=task.id,
-                action="PRIORITY_CHANGED",
-                old_value=task.priority,
-                new_value=update_data["priority"]
-            )   
-
+    if "priority" in update_data and str(update_data["priority"]) != str(task.priority):
+        create_audit_log(
+            db=db,
+            task_id=task.id,
+            action="PRIORITY_CHANGED",
+            old_value=task.priority,
+            new_value=update_data["priority"]
+        )
 
     # 2️⃣ DUPLICATE VALIDATION
     if update_data.get("is_duplicate"):
@@ -122,19 +126,36 @@ def update_task(db: Session, task_id: int, task_data: TaskUpdate):
                 detail="A task cannot be marked as duplicate of itself"
             )
 
-    # 3️⃣ APPLY UPDATES
+    # 3️⃣ APPLY UPDATES (coerce enum values to raw strings)
     for field, value in update_data.items():
-        setattr(task, field, value)
+        # convert pydantic/enums to their value
+        if hasattr(value, 'value'):
+            setattr(task, field, value.value)
+        else:
+            setattr(task, field, value)
 
-    # 4️⃣ AUTO‑CLOSE DUPLICATES
+    # 4️⃣ PROPAGATE CHANGES TO DUPLICATES
+    # If this task has duplicates pointing to it, propagate relevant fields
+    duplicate_fields = {k: (v.value if hasattr(v, 'value') else v) for k, v in update_data.items() if k in {"title", "description", "priority", "status", "due_date", "is_archived"}}
+    if duplicate_fields:
+        duplicates = (
+            db.query(Task)
+            .filter(Task.duplicate_of_task_id == task.id)
+            .all()
+        )
+        for dup in duplicates:
+            for f, val in duplicate_fields.items():
+                setattr(dup, f, val)
+
+    # 5️⃣ AUTO‑CLOSE DUPLICATES (if original moved to DONE)
     if (
         "status" in update_data
-        and update_data["status"] == TaskStatus.DONE
+        and str(update_data["status"]) == TaskStatus.DONE.value
         and not task.is_duplicate
     ):
         close_duplicate_tasks(db, task.id)
 
-    # 5️⃣ SINGLE COMMIT (task + audit together)
+    # 6️⃣ SINGLE COMMIT (task + duplicates + audit together)
     db.commit()
     db.refresh(task)
 
@@ -162,7 +183,7 @@ def archive_task(db: Session, task_id: int):
         return task
 
     task.is_archived = True
-    task.archived_at = datetime.utcnow()
+    # task.archived_at = datetime.utcnow()
 
     create_audit_log(
         db=db,

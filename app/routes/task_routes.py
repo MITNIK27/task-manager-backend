@@ -69,13 +69,20 @@ def update_task(
     existing_task = task_service.get_task_by_id(db, task_id)
     if not existing_task:
         raise HTTPException(status_code=404, detail="Task not found")
+    # Only validate role-based status change when the status is actually changing
+    if task_data.status is not None:
+        try:
+            from app.schemas.task_enums import TaskStatus as EnumTaskStatus
+            current_status_enum = EnumTaskStatus(existing_task.status)
+        except Exception:
+            current_status_enum = existing_task.status
 
-    if task_data.status:
-        validate_role_based_status_change(
-            current_user,
-            existing_task.status,
-            task_data.status
-        )
+        if task_data.status != current_status_enum:
+            validate_role_based_status_change(
+                current_user,
+                current_status_enum,
+                task_data.status
+            )
     task = task_service.update_task(db, task_id, task_data)
 
     if not task:
